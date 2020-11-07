@@ -1,0 +1,6 @@
+github.com/FishGoddess/cachego v0.1.1 h1:lhqlV3U4DWQQktZZk6O8qYdlPPr8pwPJI1dnNYyE8V0=
+github.com/FishGoddess/cachego v0.1.1/go.mod h1:Rq8e1YYKf3nXJut3I60PXiPOty5c/blx0igSlgUbb3U=
+github.com/FishGoddess/vex v0.1.2 h1:LHgCwnkJozdz9MhQKSsXGxbAUN4ZRxXja5ToPlZNeNE=
+github.com/FishGoddess/vex v0.1.2/go.mod h1:e55NI66M4bTjBTOoi8DW4tFr6Q6FrbkIDaP2QtyUUN8=
+stathat.com/c/consistent v1.0.0 h1:ezyc51EGcRPJUxfHGSgJjWzJdj3NiMU9pNfLNGiXV0c=
+stathat.com/c/consistent v1.0.0/go.mod h1:QkzMWzcbB+yQBL2AttO6sgsQS/JSTapcDISJalmCDS0=
