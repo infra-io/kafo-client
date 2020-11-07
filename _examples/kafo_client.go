@@ -13,7 +13,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/avino-plan/kafo/servers"
+	"github.com/avino-plan/kafo-client"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := servers.NewTCPClient(os.Args[1])
+	client, err := kafo.NewTCPClient(os.Args[1])
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -49,7 +49,7 @@ func main() {
 	}
 }
 
-func doGet(client *servers.TCPClient, args []string) {
+func doGet(client *kafo.TCPClient, args []string) {
 
 	if len(args) < 1 {
 		fmt.Println("Get needs 1 argument!")
@@ -63,7 +63,7 @@ func doGet(client *servers.TCPClient, args []string) {
 	fmt.Println(string(value))
 }
 
-func doSet(client *servers.TCPClient, args []string) {
+func doSet(client *kafo.TCPClient, args []string) {
 
 	if len(args) < 3 {
 		fmt.Println("Set needs 3 arguments!")
@@ -84,7 +84,7 @@ func doSet(client *servers.TCPClient, args []string) {
 	fmt.Println("Done")
 }
 
-func doDelete(client *servers.TCPClient, args []string) {
+func doDelete(client *kafo.TCPClient, args []string) {
 
 	if len(args) < 1 {
 		fmt.Println("Delete needs 1 argument!")
@@ -99,7 +99,7 @@ func doDelete(client *servers.TCPClient, args []string) {
 	fmt.Println("Done")
 }
 
-func doStatus(client *servers.TCPClient, args []string) {
+func doStatus(client *kafo.TCPClient, args []string) {
 	status, err := client.Status()
 	if err != nil {
 		fmt.Println(err)
@@ -108,7 +108,7 @@ func doStatus(client *servers.TCPClient, args []string) {
 	fmt.Printf("count: %d, keySize: %d, valueSize: %d", status.Count, status.KeySize, status.ValueSize)
 }
 
-func doNodes(client *servers.TCPClient, args []string) {
+func doNodes(client *kafo.TCPClient, args []string) {
 	nodes, err := client.Nodes()
 	if err != nil {
 		fmt.Println(err)

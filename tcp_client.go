@@ -21,6 +21,23 @@ import (
 )
 
 const (
+	// getCommand is the command of get operation.
+	getCommand = byte(1)
+
+	// setCommand is the command of set operation.
+	setCommand = byte(2)
+
+	// deleteCommand is the command of delete operation.
+	deleteCommand = byte(3)
+
+	// statusCommand is the command of status operation.
+	statusCommand = byte(4)
+
+	// nodesCommand is the command of nodes operation.
+	nodesCommand = byte(5)
+)
+
+const (
 	// ttlOfClient is the ttl of Client.
 	ttlOfClient = 15 * 60
 
@@ -218,9 +235,9 @@ func (tc *TCPClient) Delete(key string) error {
 }
 
 // Status returns the status of cache and an error if failed.
-func (tc *TCPClient) Status() (*caches.Status, error) {
+func (tc *TCPClient) Status() (*Status, error) {
 
-	totalStatus := caches.NewStatus()
+	totalStatus := NewStatus()
 	nodes := tc.circle.Members()
 	for _, node := range nodes {
 		client, err := tc.getOrCreateClient(node)
@@ -231,7 +248,7 @@ func (tc *TCPClient) Status() (*caches.Status, error) {
 		if err != nil {
 			return nil, err
 		}
-		status := caches.NewStatus()
+		status := NewStatus()
 		err = json.Unmarshal(body, status)
 		if err != nil {
 			return nil, err
