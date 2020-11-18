@@ -26,11 +26,8 @@ type Config struct {
 	// Notice that it should equals to server.
 	NumberOfReplicas int
 
-	// MaxTimesOfGetConnection is the max times when getting connection failed.
-	MaxTimesOfGetConnection int
-
-	// MaxTimesOfUpdateCircle is the max times when updating circle failed.
-	MaxTimesOfUpdateCircle int
+	// MaxRetryTimes is the max retry times when something wrong happens.
+	MaxRetryTimes int
 
 	// UpdateCircleDuration is the duration between two circle updating operations.
 	UpdateCircleDuration time.Duration
@@ -39,12 +36,11 @@ type Config struct {
 // DefaultConfig returns a default config.
 func DefaultConfig() Config {
 	return Config{
-		Network:                 "tcp",
-		Ttl:                     10 * time.Minute,
-		GcDuration:              30 * time.Minute,
-		NumberOfReplicas:        1024,
-		MaxTimesOfGetConnection: 3,
-		MaxTimesOfUpdateCircle:  3,
-		UpdateCircleDuration:    time.Minute,
+		Network:              "tcp",
+		Ttl:                  10 * time.Minute,
+		GcDuration:           15 * time.Minute,
+		NumberOfReplicas:     1024,
+		MaxRetryTimes:        5,
+		UpdateCircleDuration: time.Minute,
 	}
 }

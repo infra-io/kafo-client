@@ -10,7 +10,9 @@ package kafo
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +34,9 @@ const (
 
 	// nodesCommand is the command of nodes operation.
 	nodesCommand = byte(5)
+
+	// redirectPrefix is the prefix of redirect error.
+	redirectPrefix = "redirect to node "
 )
 
 // TCPClient is the client of tcp Network.
@@ -77,6 +82,7 @@ func NewTCPClient(addresses []string, config Config) (*TCPClient, error) {
 
 	client.circle = consistent.New()
 	client.circle.NumberOfReplicas = config.NumberOfReplicas
+	client.circle.Set(addresses)
 	client.updateCircle()
 
 	go client.autoGc()
@@ -124,7 +130,7 @@ func (tc *TCPClient) getConnection(address string) (*connection, bool) {
 // addConnection adds a new connection of address to tc.
 func (tc *TCPClient) addConnection(address string) error {
 
-	conn, err := newConnection(tc.config.Network, address)
+	conn, err := newConnection(address, tc.config)
 	if err != nil {
 		return err
 	}
@@ -133,44 +139,31 @@ func (tc *TCPClient) addConnection(address string) error {
 	return nil
 }
 
-func (tc *TCPClient) doOnAddress(address string, task func(conn *connection) <-chan *Response) <-chan *Response {
-
-	var err error
-	for i := 0; i < tc.config.MaxTimesOfGetConnection; i++ {
-		if conn, ok := tc.getConnection(address); ok {
-			return task(conn)
-		}
-		err = tc.addConnection(address)
-	}
-	return wrapErrorToResponseChan(fmt.Errorf("failed to get connection after trying %d times due to %v",
-		tc.config.MaxTimesOfGetConnection, err))
-}
-
 // nodes returns nodes of cluster and an error if failed.
 func (tc *TCPClient) nodes() ([]string, error) {
 
-	var err error
 	addresses := tc.circle.Members()
 	for _, address := range addresses {
-		responseChan := tc.doOnAddress(address, func(conn *connection) <-chan *Response {
-			return conn.do(&request{
-				command:    nodesCommand,
-				args:       nil,
-				resultChan: make(chan *Response, 1),
-			})
-		})
-		response := <-responseChan
-		if nodes, err := response.toNodes(); err == nil {
-			return nodes, nil
+
+		conn, ok := tc.getConnection(address)
+		if !ok {
+			continue
 		}
+
+		body, err := conn.do(nodesCommand, nil)
+		if err != nil {
+			continue
+		}
+		var nodes []string
+		return nodes, json.Unmarshal(body, &nodes)
 	}
-	return nil, err
+	return nil, fmt.Errorf("failed to get nodes after connecting %d addresses", len(addresses))
 }
 
 // updateCircle will update hash circle to cluster.
 func (tc *TCPClient) updateCircle() {
 
-	for i := 0; i < tc.config.MaxTimesOfUpdateCircle; i++ {
+	for i := 0; i < tc.config.MaxRetryTimes; i++ {
 		nodes, err := tc.nodes()
 		if err == nil {
 			tc.circle.Set(nodes)
@@ -192,92 +185,108 @@ func (tc *TCPClient) autoUpdateCircle() {
 	}
 }
 
-// Get returns the value of key and an error if failed.
-func (tc *TCPClient) Get(key string) <-chan *Response {
+// do will use key to get a address and try to connect it.
+// If connection is ok, then command and args will be sent through this connection.
+func (tc *TCPClient) do(key string, command byte, args [][]byte) (body []byte, err error) {
 
-	address, err := tc.circle.Get(key)
-	if err != nil {
-		return wrapErrorToResponseChan(err)
+	// Guess why we do this? Because we think the first time adding connection is not counted as retry
+	maxRetryTimes := 3
+	if tc.config.MaxRetryTimes > 3 {
+		maxRetryTimes = tc.config.MaxRetryTimes
 	}
 
+	var address string
+	for i := 0; i < maxRetryTimes; i++ {
+
+		// Select address of key
+		address, err = tc.circle.Get(key)
+		if err != nil {
+			continue
+		}
+
+		// Get connection of address and add a new one if not found
+		conn, ok := tc.getConnection(address)
+		if !ok {
+			err = tc.addConnection(address)
+			continue
+		}
+
+		// Use connection to do something
+		body, err = conn.do(command, args)
+		if err != nil {
+			errMsg := err.Error()
+			if strings.HasPrefix(errMsg, redirectPrefix) {
+				address = strings.TrimPrefix(err.Error(), redirectPrefix)
+				continue
+			}
+
+			// An existing connection was forcibly closed by the remote host
+			if strings.Contains(errMsg, "closed by the remote host") {
+				if nodes, err := tc.nodes(); err == nil {
+					tc.circle.Set(nodes)
+					continue
+				}
+			}
+		}
+		return body, nil
+	}
+	return nil, fmt.Errorf("failed after trying %d times due to %v", maxRetryTimes, err)
+}
+
+// Get returns the value of key and an error if failed.
+func (tc *TCPClient) Get(key string) ([]byte, error) {
 	tc.lock.Lock()
 	defer tc.lock.Unlock()
-	return tc.doOnAddress(address, func(conn *connection) <-chan *Response {
-		return conn.do(&request{
-			command:    getCommand,
-			args:       [][]byte{[]byte(key)},
-			resultChan: make(chan *Response, 1),
-		})
-	})
+	return tc.do(key, getCommand, [][]byte{[]byte(key)})
 }
 
 // Set adds the key and value with given ttl to cache.
 // Returns an error if failed.
-func (tc *TCPClient) Set(key string, value []byte, ttl int64) <-chan *Response {
-
-	address, err := tc.circle.Get(key)
-	if err != nil {
-		return wrapErrorToResponseChan(err)
-	}
+func (tc *TCPClient) Set(key string, value []byte, ttl int64) error {
 
 	tc.lock.Lock()
 	defer tc.lock.Unlock()
-	return tc.doOnAddress(address, func(conn *connection) <-chan *Response {
-		ttlBytes := make([]byte, 8)
-		binary.BigEndian.PutUint64(ttlBytes, uint64(ttl))
-		return conn.do(&request{
-			command:    setCommand,
-			args:       [][]byte{ttlBytes, []byte(key), value},
-			resultChan: make(chan *Response, 1),
-		})
-	})
+
+	ttlBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(ttlBytes, uint64(ttl))
+	_, err := tc.do(key, setCommand, [][]byte{ttlBytes, []byte(key), value})
+	return err
 }
 
 // Delete deletes the value of key and returns an error if failed.
-func (tc *TCPClient) Delete(key string) <-chan *Response {
-
-	address, err := tc.circle.Get(key)
-	if err != nil {
-		return wrapErrorToResponseChan(err)
-	}
-
+func (tc *TCPClient) Delete(key string) error {
 	tc.lock.Lock()
 	defer tc.lock.Unlock()
-	return tc.doOnAddress(address, func(conn *connection) <-chan *Response {
-		return conn.do(&request{
-			command:    deleteCommand,
-			args:       [][]byte{[]byte(key)},
-			resultChan: make(chan *Response, 1),
-		})
-	})
+	_, err := tc.do(key, deleteCommand, [][]byte{[]byte(key)})
+	return err
 }
 
-// Status returns the status of cache and an error if failed.
+// Status returns the status of kafo and an error if failed.
 func (tc *TCPClient) Status() (*Status, error) {
 
 	tc.lock.Lock()
 	defer tc.lock.Unlock()
 
 	// Fetch from all nodes
-	addresses := tc.circle.Members()
-	responseChannels := make([]<-chan *Response, 0, len(addresses))
-	for _, address := range addresses {
-		responseChannels = append(responseChannels, tc.doOnAddress(address, func(conn *connection) <-chan *Response {
-			return conn.do(&request{
-				command:    statusCommand,
-				args:       nil,
-				resultChan: make(chan *Response, 1),
-			})
-		}))
-	}
-
-	// Summary
 	result := &Status{}
-	for _, responseChan := range responseChannels {
-		response := <-responseChan
-		status, err := response.toStatus()
+	addresses := tc.circle.Members()
+	for _, address := range addresses {
+
+		conn, ok := tc.getConnection(address)
+		if !ok {
+			if err := tc.addConnection(address); err != nil {
+				continue
+			}
+			if conn, ok = tc.getConnection(address); !ok {
+				continue
+			}
+		}
+
+		body, err := conn.do(statusCommand, nil)
+		status := &Status{}
+		err = json.Unmarshal(body, status)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		result.Count += status.Count
 		result.KeySize += status.KeySize

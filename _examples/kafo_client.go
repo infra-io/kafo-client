@@ -8,111 +8,112 @@
 
 package main
 
-//import (
-//	"fmt"
-//	"os"
-//	"strconv"
-//
-//	"github.com/avino-plan/kafo-client"
-//)
-//
-//func main() {
-//
-//	if len(os.Args) < 3 {
-//		fmt.Println("Missing args!")
-//		os.Exit(1)
-//	}
-//
-//	client, err := kafo.NewTCPClient(os.Args[1])
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	defer client.Close()
-//
-//	command := os.Args[2]
-//	args := os.Args[3:]
-//	switch command {
-//	case "get":
-//		doGet(client, args)
-//	case "set":
-//		doSet(client, args)
-//	case "delete":
-//		doDelete(client, args)
-//	case "status":
-//		doStatus(client, args)
-//	case "nodes":
-//		doNodes(client, args)
-//	default:
-//		fmt.Println("Command not found!")
-//		os.Exit(1)
-//	}
-//}
-//
-//func doGet(client *kafo.TCPClient, args []string) {
-//
-//	if len(args) < 1 {
-//		fmt.Println("Get needs 1 argument!")
-//		os.Exit(1)
-//	}
-//	value, err := client.Get(args[0])
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	fmt.Println(string(value))
-//}
-//
-//func doSet(client *kafo.TCPClient, args []string) {
-//
-//	if len(args) < 3 {
-//		fmt.Println("Set needs 3 arguments!")
-//		os.Exit(1)
-//	}
-//
-//	ttl, err := strconv.ParseInt(args[0], 10, 64)
-//	if err != nil {
-//		fmt.Println("TTL is not an integer!")
-//		os.Exit(1)
-//	}
-//
-//	err = client.Set(args[1], []byte(args[2]), ttl)
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	fmt.Println("Done")
-//}
-//
-//func doDelete(client *kafo.TCPClient, args []string) {
-//
-//	if len(args) < 1 {
-//		fmt.Println("Delete needs 1 argument!")
-//		os.Exit(1)
-//	}
-//
-//	err := client.Delete(args[0])
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	fmt.Println("Done")
-//}
-//
-//func doStatus(client *kafo.TCPClient, args []string) {
-//	status, err := client.Status()
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	fmt.Printf("count: %d, keySize: %d, valueSize: %d", status.Count, status.KeySize, status.ValueSize)
-//}
-//
-//func doNodes(client *kafo.TCPClient, args []string) {
-//	nodes, err := client.Nodes()
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
-//	}
-//	fmt.Printf("nodes: %v", nodes)
-//}
+import (
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/avino-plan/kafo-client"
+)
+
+func main() {
+
+	if len(os.Args) < 3 {
+		fmt.Println("Missing args!")
+		os.Exit(1)
+	}
+
+	config := kafo.DefaultConfig()
+	client, err := kafo.NewTCPClient([]string{os.Args[1]}, config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer client.Close()
+
+	command := os.Args[2]
+	args := os.Args[3:]
+	switch command {
+	case "get":
+		doGet(client, args)
+	case "set":
+		doSet(client, args)
+	case "delete":
+		doDelete(client, args)
+	case "status":
+		doStatus(client, args)
+	case "nodes":
+		doNodes(client, args)
+	default:
+		fmt.Println("Command not found!")
+		os.Exit(1)
+	}
+}
+
+func doGet(client *kafo.TCPClient, args []string) {
+
+	if len(args) < 1 {
+		fmt.Println("Get needs 1 argument!")
+		os.Exit(1)
+	}
+	value, err := client.Get(args[0])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println(string(value))
+}
+
+func doSet(client *kafo.TCPClient, args []string) {
+
+	if len(args) < 3 {
+		fmt.Println("Set needs 3 arguments!")
+		os.Exit(1)
+	}
+
+	ttl, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		fmt.Println("TTL is not an integer!")
+		os.Exit(1)
+	}
+
+	err = client.Set(args[1], []byte(args[2]), ttl)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("Done")
+}
+
+func doDelete(client *kafo.TCPClient, args []string) {
+
+	if len(args) < 1 {
+		fmt.Println("Delete needs 1 argument!")
+		os.Exit(1)
+	}
+
+	err := client.Delete(args[0])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("Done")
+}
+
+func doStatus(client *kafo.TCPClient, args []string) {
+	status, err := client.Status()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Printf("count: %d, keySize: %d, valueSize: %d", status.Count, status.KeySize, status.ValueSize)
+}
+
+func doNodes(client *kafo.TCPClient, args []string) {
+	nodes, err := client.Nodes()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Printf("nodes: %v", nodes)
+}
