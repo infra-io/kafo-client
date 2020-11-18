@@ -23,7 +23,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := kafo.NewTCPClient(os.Args[1])
+	config := kafo.DefaultConfig()
+	client, err := kafo.NewTCPClient([]string{os.Args[1]}, config)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
