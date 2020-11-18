@@ -189,6 +189,9 @@ func (tc *TCPClient) autoUpdateCircle() {
 // If connection is ok, then command and args will be sent through this connection.
 func (tc *TCPClient) do(key string, command byte, args [][]byte) (body []byte, err error) {
 
+	tc.lock.Lock()
+	defer tc.lock.Unlock()
+
 	// Guess why we do this? Because we think the first time adding connection is not counted as retry
 	maxRetryTimes := 3
 	if tc.config.MaxRetryTimes > 3 {
@@ -212,7 +215,9 @@ func (tc *TCPClient) do(key string, command byte, args [][]byte) (body []byte, e
 		}
 
 		// Use connection to do something
+		tc.lock.Unlock()
 		body, err = conn.do(command, args)
+		tc.lock.Lock()
 		if err != nil {
 			errMsg := err.Error()
 			if strings.HasPrefix(errMsg, redirectPrefix) {
@@ -235,18 +240,12 @@ func (tc *TCPClient) do(key string, command byte, args [][]byte) (body []byte, e
 
 // Get returns the value of key and an error if failed.
 func (tc *TCPClient) Get(key string) ([]byte, error) {
-	tc.lock.Lock()
-	defer tc.lock.Unlock()
 	return tc.do(key, getCommand, [][]byte{[]byte(key)})
 }
 
 // Set adds the key and value with given ttl to cache.
 // Returns an error if failed.
 func (tc *TCPClient) Set(key string, value []byte, ttl int64) error {
-
-	tc.lock.Lock()
-	defer tc.lock.Unlock()
-
 	ttlBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(ttlBytes, uint64(ttl))
 	_, err := tc.do(key, setCommand, [][]byte{ttlBytes, []byte(key), value})
@@ -255,8 +254,6 @@ func (tc *TCPClient) Set(key string, value []byte, ttl int64) error {
 
 // Delete deletes the value of key and returns an error if failed.
 func (tc *TCPClient) Delete(key string) error {
-	tc.lock.Lock()
-	defer tc.lock.Unlock()
 	_, err := tc.do(key, deleteCommand, [][]byte{[]byte(key)})
 	return err
 }
